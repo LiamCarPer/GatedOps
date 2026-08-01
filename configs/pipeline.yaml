@@ -1,0 +1,33 @@
+model_name: churn-classifier
+
+# The registry lives outside the repo by default so the first MLflow database
+# initialization is not slowed down by cloud-synced folders. Set an explicit
+# path here if you want it next to the code, e.g. sqlite:///mlflow.db
+# tracking_uri: sqlite:///mlflow.db
+
+gate:
+  thresholds:
+    - metric: f1
+      op: ">="
+      value: 0.70
+    - metric: precision
+      op: ">="
+      value: 0.65
+    - metric: false_alarm_rate
+      op: "<="
+      value: 0.10
+  champion:
+    metric: f1
+    tolerance: 0.02
+
+data:
+  n_rows: 20000
+  signal_strength: 0.9
+  seed: 42
+  target: churn
+
+model:
+  algorithm: logistic
+  random_state: 42
+  test_size: 0.2
+  threshold: 0.6
