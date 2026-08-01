@@ -9,8 +9,20 @@ from pathlib import Path
 from gatedops.config import load_run_config
 from gatedops.pipelines.run import PipelineResult, run_pipeline
 
-_DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "configs" / "pipeline.yaml"
 _DEMO_SIGNAL = {"good": 0.95, "bad": 0.1}
+
+
+def _default_config() -> Path:
+    """Locate the pipeline config for the current context.
+
+    Prefers ``configs/pipeline.yaml`` next to the working directory (works both
+    from the repository root and from a container working directory), falling
+    back to the file bundled with the source layout.
+    """
+    local = Path.cwd() / "configs" / "pipeline.yaml"
+    if local.is_file():
+        return local
+    return Path(__file__).resolve().parents[2] / "configs" / "pipeline.yaml"
 
 
 def _print_result(result: PipelineResult) -> None:
@@ -71,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run_parser = subparsers.add_parser("run", help="run the training pipeline end to end")
-    run_parser.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    run_parser.add_argument("--config", type=Path, default=_default_config())
     run_parser.add_argument("--signal-strength", type=float, default=None)
     run_parser.add_argument("--seed", type=int, default=None)
     run_parser.add_argument("--tracking-uri", default=None)
@@ -80,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
 
     demo_parser = subparsers.add_parser("demo", help="run a scripted good or bad scenario")
     demo_parser.add_argument("scenario", choices=["good", "bad"])
-    demo_parser.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
+    demo_parser.add_argument("--config", type=Path, default=_default_config())
     demo_parser.add_argument("--tracking-uri", default=None)
     demo_parser.set_defaults(handler=cmd_demo)
 
