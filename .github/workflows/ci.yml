@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -21,3 +22,49 @@ jobs:
         run: uv run mypy src
       - name: Test
         run: uv run pytest -q
+
+  compose-smoke:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the stack
+        run: docker compose up --build -d
+      - name: Score a request and assert lineage
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.request
+
+          base = "http://localhost:8000"
+          for _ in range(60):
+              try:
+                  health = json.load(urllib.request.urlopen(f"{base}/health", timeout=5))
+                  if health.get("status") == "ok":
+                      break
+              except Exception:
+                  pass
+              time.sleep(5)
+          else:
+              raise SystemExit("API did not become healthy")
+
+          body = json.dumps({
+              "tenure_years": 2.5,
+              "monthly_spend": 49.9,
+              "support_tickets": 2,
+              "usage_frequency": 41.0,
+              "engagement_score": 0.4,
+              "has_contract": 0,
+              "payment_delay": 3.2,
+          }).encode()
+          request = urllib.request.Request(
+              f"{base}/score", data=body, headers={"Content-Type": "application/json"}
+          )
+          score = json.load(urllib.request.urlopen(request, timeout=30))
+          assert score["lineage"]["model_version"], score
+          print("score ok, served version", score["lineage"]["model_version"])
+          PY
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
