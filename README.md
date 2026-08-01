@@ -55,7 +55,7 @@ registered, promoted, and served through the same machinery.
 
 | Piece | Location | What it enforces |
 | --- | --- | --- |
-| **Gate engine** | `src/gatedops/gate/` | Declarative rules: absolute thresholds plus a champion-comparison rule (no regression beyond tolerance). Fails closed on missing metrics; the champion guard is vacuous until a first release exists. |
+| **Gate engine** | `src/gatedops/gate/` | Declarative rules: absolute thresholds plus a champion-comparison rule with `tolerance`/`min_delta` and explicit metric direction (`higher_is_better`). Verdicts are `PASS` / `FAIL` / `ERROR`, so a misconfigured gate is never mistaken for a failing model. Fails closed on missing metrics; the champion guard is vacuous until a first release exists. |
 | **Lineage manifest** | `src/gatedops/manifest/` | A per-release record: `model_version`, SHA-256 `artifact_hash` of the model bytes, `run_id`, `git_sha`, `data_hash`, metrics, and the gate verdict. |
 | **Guarded promotion** | `src/gatedops/promote/` | Refuses to promote unless the gate passed *and* the artifact in the registry hashes to exactly what was trained. Registry is behind a protocol — policy stays registry-agnostic. |
 | **Scoring service** | `src/gatedops/serve/` | FastAPI app that serves **only** the production alias, re-verifies the artifact hash before loading, and echoes the manifest in every `/score` response. A background poller hot-swaps when the alias moves. |
@@ -124,23 +124,31 @@ uv run python -m gatedops demo bad    # gate FAIL, exit code 1, nothing promoted
 
 ```text
 $ uv run python -m gatedops demo bad
-run_id:      03289b6d06b541b795f0e33a27d6814d
-version:     4
+run_id:      56e3963d70ef406086c404e554855f4b
+version:     5
 metrics:     accuracy=0.5705, precision=0.6530, recall=0.3163, f1=0.4262, false_alarm_rate=0.1710, roc_auc=0.6407
 gate:        FAIL (1/4 checks passed)
 promoted:    no
   FAIL threshold f1                 actual 0.4262 vs threshold 0.7000
   FAIL threshold false_alarm_rate   actual 0.1710 vs threshold 0.1000
-  FAIL champion  f1                 challenger delta -0.4631 vs tolerance 0.0200
+  FAIL champion  f1                 challenger delta -0.4631 vs required >= -0.0200
 ```
 
 The same run in CI fails the build (non-zero exit code), so a bad model can
-never be promoted.
+never be promoted. The `train-eval-gate` workflow demonstrates it live: trigger
+it from the Actions tab and the `gate-blocks-bad` job fails on purpose with the
+`GateReport` uploaded as an artifact.
 
 ## Design decisions worth reading
 
 - **Fail-closed gate.** A missing metric fails the run; a model cannot slip
   through because a check was forgotten.
+- **Config errors are not model failures.** An empty or malformed gate returns
+  `ERROR`, distinct from `FAIL`, so policy misconfiguration is never masked as
+  model underperformance.
+- **Metric direction is explicit.** `f1` is higher-is-better, `false_alarm_rate`
+  is lower-is-better; the champion rule honors that, so a regression on FAR is
+  caught as a regression.
 - **Byte-exact lineage.** `artifact_hash` is the SHA-256 of the actual model
   bytes. Promotion and serving both re-check it, so what is gated is exactly
   what is deployed — no drift, no tampered artifacts.
@@ -194,8 +202,13 @@ uv run mypy src
 uv run pytest -q
 ```
 
-GitHub Actions runs lint, type checking, and the full test suite on every push
-and pull request (`.github/workflows/ci.yml`).
+GitHub Actions runs three workflows:
+
+- `ci` -- lint, type checking, tests, and a Docker Compose smoke test
+  (builds the stack, scores a request, asserts the served lineage);
+- `train-eval-gate` -- trains and promotes a good model, and on PRs /
+  `workflow_dispatch` intentionally runs a bad model through the gate to show
+  it being blocked, uploading the `GateReport` as an artifact.
 
 ## Roadmap
 
