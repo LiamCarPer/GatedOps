@@ -58,7 +58,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         promote_on_pass=not args.no_promote,
     )
     _print_result(result)
-    if result.gate.status == "FAIL":
+    if result.gate.status != "PASS":
         _print_failures(result)
         return 1
     return 0
@@ -72,7 +72,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
         signal_strength=_DEMO_SIGNAL[args.scenario],
     )
     _print_result(result)
-    if result.gate.status == "FAIL":
+    if result.gate.status != "PASS":
         _print_failures(result)
         return 1
     return 0
