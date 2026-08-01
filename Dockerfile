@@ -17,6 +17,7 @@ WORKDIR /app
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
     MLFLOW_DISABLE_TELEMETRY=1
 
 COPY --from=builder /app/.venv /app/.venv
