@@ -54,12 +54,12 @@ def test_champion_regression_beyond_tolerance_fails() -> None:
     assert report.checks[0].rule == "champion"
 
 
-def test_champion_rule_requires_champion_metrics() -> None:
+def test_champion_rule_vacuous_without_champion() -> None:
     config = GateConfig(champion=ChampionRule(metric="f1", tolerance=0.01))
     report = evaluate_gate(config, {"f1": 0.80}, model_name="churn-v1")
 
-    assert report.status == "FAIL"
-    assert "no champion metrics" in report.checks[0].detail
+    assert report.status == "PASS"
+    assert "vacuous" in report.checks[0].detail
 
 
 def test_empty_config_never_passes() -> None:

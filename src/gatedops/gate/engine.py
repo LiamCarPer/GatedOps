@@ -26,7 +26,9 @@ def evaluate_gate(
     """Evaluate ``metrics`` (and optionally the champion's) against ``config``.
 
     A check fails if its metric is missing from the evaluation, which makes a
-    malformed run fail closed rather than pass by omission.
+    malformed run fail closed rather than pass by omission. The champion guard
+    is the one exception: before a first release there is no baseline, so it
+    passes vacuously until the registry holds a production model.
     """
     checks: list[GateCheck] = []
 
@@ -60,8 +62,8 @@ def evaluate_gate(
                 GateCheck(
                     rule="champion",
                     metric=config.champion.metric,
-                    passed=False,
-                    detail="champion rule enabled but no champion metrics provided",
+                    passed=True,
+                    detail="no champion in registry; champion guard is vacuous",
                 )
             )
         else:
