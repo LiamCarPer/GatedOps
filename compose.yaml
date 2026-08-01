@@ -29,6 +29,10 @@ services:
       - "5001:5000"
     volumes:
       - mlflow-data:/mlflow-data
+    environment:
+      # mlflow's DNS-rebinding protection rejects the compose hostname by
+      # default; allow it for the local stack.
+      MLFLOW_SERVER_ALLOWED_HOSTS: "*"
     healthcheck:
       test:
         - CMD
