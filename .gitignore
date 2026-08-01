@@ -19,5 +19,8 @@ mlflow.db
 *.db-wal
 *.db-shm
 
+# Pipeline output
+artifacts/
+
 # Environments
 .env
