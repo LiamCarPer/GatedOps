@@ -19,6 +19,8 @@ gate:
   champion:
     metric: f1
     tolerance: 0.02
+    min_delta: 0.0
+    higher_is_better: true
 
 data:
   n_rows: 20000

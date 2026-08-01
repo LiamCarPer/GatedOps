@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 RuleKind = Literal["threshold", "champion"]
+Verdict = Literal["PASS", "FAIL", "ERROR"]
 
 
 class GateCheck(BaseModel):
@@ -21,10 +22,15 @@ class GateCheck(BaseModel):
 
 
 class GateReport(BaseModel):
-    """The verdict of a gate run, with per-check evidence for auditability."""
+    """The verdict of a gate run, with per-check evidence for auditability.
+
+    ``ERROR`` is distinct from ``FAIL``: it means the gate itself was
+    misconfigured (for example, no rules declared) rather than the model
+    failing to meet a declared rule.
+    """
 
     model_name: str
-    status: Literal["PASS", "FAIL"]
+    status: Verdict
     checks: list[GateCheck]
     decided_at: datetime
     summary: str = ""

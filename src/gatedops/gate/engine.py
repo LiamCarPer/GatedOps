@@ -10,6 +10,10 @@ from typing import Literal
 from gatedops.gate.report import GateCheck, GateReport
 from gatedops.gate.rules import ComparisonOp, GateConfig
 
+# Metrics are floats; a challenger that ties the required margin within float
+# noise must be treated as meeting the rule, not rejected at the boundary.
+_EPSILON = 1e-9
+
 
 def _compare(actual: float, op: ComparisonOp, value: float) -> bool:
     if op in (">=", ">"):
@@ -83,26 +87,34 @@ def evaluate_gate(
                 )
             else:
                 delta = actual - champion
-                passed = delta >= -config.champion.tolerance
+                if config.champion.higher_is_better:
+                    required = config.champion.min_delta - config.champion.tolerance
+                    passed = delta >= required - _EPSILON
+                else:
+                    required = config.champion.tolerance - config.champion.min_delta
+                    passed = delta <= required + _EPSILON
                 checks.append(
                     GateCheck(
                         rule="champion",
                         metric=config.champion.metric,
                         actual=actual,
                         champion=champion,
-                        threshold=-config.champion.tolerance,
+                        threshold=required,
                         passed=passed,
                         detail=(
-                            f"challenger delta {delta:+.4f} vs tolerance "
-                            f"{config.champion.tolerance:.4f}"
+                            f"challenger delta {delta:+.4f} vs required "
+                            f"<= {required:+.4f}"
+                            if not config.champion.higher_is_better
+                            else f"challenger delta {delta:+.4f} vs required "
+                            f">= {required:+.4f}"
                         ),
                     )
                 )
 
-    status: Literal["PASS", "FAIL"]
+    status: Literal["PASS", "FAIL", "ERROR"]
     if not checks:
-        status = "FAIL"
-        summary = "no rules configured: gate cannot pass"
+        status = "ERROR"
+        summary = "no rules configured: the gate is misconfigured"
     else:
         passed_checks = sum(1 for check in checks if check.passed)
         status = "PASS" if passed_checks == len(checks) else "FAIL"
