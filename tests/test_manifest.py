@@ -1,10 +1,11 @@
 """Unit tests for the lineage manifest schema, hashing, and builder."""
 
+import subprocess
 from pathlib import Path
 
 from gatedops.gate.engine import evaluate_gate
 from gatedops.gate.rules import GateConfig, ThresholdRule
-from gatedops.manifest.builder import build_manifest
+from gatedops.manifest.builder import build_manifest, git_rev
 from gatedops.manifest.hashing import sha256_bytes, sha256_file
 from gatedops.manifest.schema import ModelManifest
 
@@ -52,3 +53,28 @@ def test_manifest_json_roundtrip(tmp_path: Path) -> None:
     restored = ModelManifest.model_validate_json(manifest.model_dump_json())
 
     assert restored == manifest
+
+
+def test_git_rev_tolerates_missing_git(monkeypatch) -> None:
+    def _raise(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", _raise)
+
+    assert git_rev() == ""
+
+
+def test_git_rev_honors_environment_override(monkeypatch) -> None:
+    monkeypatch.setenv("GATEDOPS_GIT_SHA", "abc123")
+
+    assert git_rev() == "abc123"
+
+
+def test_git_rev_respects_env_override_over_missing_git(monkeypatch) -> None:
+    def _raise(*args, **kwargs):
+        raise AssertionError("subprocess should not run when override is set")
+
+    monkeypatch.setattr(subprocess, "run", _raise)
+    monkeypatch.setenv("GATEDOPS_GIT_SHA", "abc123")
+
+    assert git_rev() == "abc123"

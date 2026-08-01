@@ -14,24 +14,28 @@ def git_rev() -> str:
 
     The ``GATEDOPS_GIT_SHA`` environment variable takes precedence, which lets
     builds inside containers (where ``git`` may not be present) still record a
-    code revision in the manifest.
+    code revision in the manifest. Returns an empty string when git is not
+    available.
     """
     override = os.environ.get("GATEDOPS_GIT_SHA")
     if override:
         return override
 
-    sha = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.strip()
-    dirty = subprocess.run(
-        ["git", "status", "--porcelain"],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+    except OSError:
+        return ""
     return f"{sha}-dirty" if dirty else sha
 
 
