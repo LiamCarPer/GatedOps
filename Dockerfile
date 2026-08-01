@@ -7,7 +7,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY configs ./configs
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-editable
 
 # Runtime: a single image that can run either the MLflow registry server or
 # the scoring API, so the served mlflow version always matches uv.lock.
