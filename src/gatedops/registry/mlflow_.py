@@ -66,6 +66,16 @@ class MlflowRegistry:
         run = self._client.get_run(run_id)
         return {name: float(value) for name, value in run.data.metrics.items()}
 
+    def params_for(self, model_name: str, model_version: str) -> dict[str, str]:
+        version = self._client.get_model_version(model_name, model_version)
+        run_id = version.run_id or self._require_run_id(model_name, model_version)
+        run = self._client.get_run(run_id)
+        return dict(run.data.params)
+
+    def model_version_tag(self, model_name: str, model_version: str, key: str) -> str | None:
+        version = self._client.get_model_version(model_name, model_version)
+        return version.tags.get(key)
+
     @staticmethod
     def _require_run_id(model_name: str, model_version: str) -> str:
         raise PromoteBlockedError(
