@@ -42,7 +42,10 @@ def _print_result(result: PipelineResult) -> None:
 def _print_failures(result: PipelineResult) -> None:
     for check in result.gate.checks:
         if not check.passed:
-            print(f"  FAIL {check.rule:<9} {check.metric:<18} {check.detail}")
+            detail = check.detail
+            if not detail and check.actual is not None and check.threshold is not None:
+                detail = f"actual {check.actual:.4f} vs threshold {check.threshold:.4f}"
+            print(f"  FAIL {check.rule:<9} {check.metric:<18} {detail}")
 
 
 def cmd_run(args: argparse.Namespace) -> int:
