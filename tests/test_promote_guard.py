@@ -107,3 +107,32 @@ def test_promote_success(tmp_path: Path) -> None:
     assert receipt.to_stage == "Production"
     assert receipt.from_stage == "Staging"
     assert registry.calls == [("churn", "v2")]
+
+
+def test_promote_rejects_error_gate(tmp_path: Path) -> None:
+    artifact = tmp_path / "model.pkl"
+    artifact.write_bytes(b"x")
+    report = evaluate_gate(GateConfig(), {"f1": 0.5}, model_name="churn")
+    manifest = build_manifest(
+        model_name="churn",
+        model_version="v1",
+        artifact=artifact,
+        run_id="r",
+        data_hash="d",
+        metrics={"f1": 0.5},
+        gate=report,
+    )
+
+    with pytest.raises(PromoteBlockedError, match="gate status"):
+        promote(manifest, FakeRegistry(artifact))
+
+
+def test_promote_is_idempotent(tmp_path: Path) -> None:
+    manifest, registry = _passed_manifest(tmp_path)
+
+    first = promote(manifest, registry)
+    second = promote(manifest, registry)
+
+    assert first.to_stage == "Production"
+    assert second.to_stage == "Production"
+    assert registry.calls == [("churn", "v2"), ("churn", "v2")]

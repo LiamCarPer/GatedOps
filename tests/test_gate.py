@@ -62,11 +62,61 @@ def test_champion_rule_vacuous_without_champion() -> None:
     assert "vacuous" in report.checks[0].detail
 
 
-def test_empty_config_never_passes() -> None:
+def test_empty_config_is_an_error() -> None:
     report = evaluate_gate(GateConfig(), {"f1": 0.99}, model_name="churn-v1")
 
-    assert report.status == "FAIL"
+    assert report.status == "ERROR"
     assert report.checks == []
+    assert "misconfigured" in report.summary
+
+
+def test_champion_lower_is_better_regression_fails() -> None:
+    config = GateConfig(
+        champion=ChampionRule(
+            metric="false_alarm_rate", tolerance=0.01, higher_is_better=False
+        )
+    )
+    report = evaluate_gate(
+        config,
+        {"false_alarm_rate": 0.08},
+        champion_metrics={"false_alarm_rate": 0.05},
+        model_name="churn-v1",
+    )
+
+    assert report.status == "FAIL"
+    assert report.checks[0].passed is False
+    assert "required <= +0.0100" in report.checks[0].detail
+
+
+def test_champion_lower_is_better_improvement_passes() -> None:
+    config = GateConfig(
+        champion=ChampionRule(
+            metric="false_alarm_rate", tolerance=0.01, higher_is_better=False
+        )
+    )
+    report = evaluate_gate(
+        config,
+        {"false_alarm_rate": 0.04},
+        champion_metrics={"false_alarm_rate": 0.05},
+        model_name="churn-v1",
+    )
+
+    assert report.status == "PASS"
+
+
+def test_champion_min_delta_requires_improvement() -> None:
+    config = GateConfig(champion=ChampionRule(metric="f1", min_delta=0.02, tolerance=0.0))
+
+    shortfall = evaluate_gate(
+        config, {"f1": 0.81}, champion_metrics={"f1": 0.80}, model_name="churn-v1"
+    )
+    meeting = evaluate_gate(
+        config, {"f1": 0.82}, champion_metrics={"f1": 0.80}, model_name="churn-v1"
+    )
+
+    assert shortfall.status == "FAIL"
+    assert shortfall.checks[0].passed is False
+    assert meeting.status == "PASS"
 
 
 def test_report_roundtrips_through_json() -> None:
