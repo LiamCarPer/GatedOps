@@ -1,0 +1,90 @@
+name: train-eval-gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  train-promote-good:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+      - name: Train, gate, and promote a good model
+        run: uv run python -m gatedops demo good --tracking-uri sqlite:///mlflow-good.db
+      - name: Verify a production model exists
+        run: |
+          uv run python -c "
+          import mlflow
+          mlflow.set_tracking_uri('sqlite:///mlflow-good.db')
+          version = mlflow.tracking.MlflowClient().get_model_version_by_alias(
+              'churn-classifier', 'production'
+          )
+          assert version is not None, 'no production model registered'
+          print('production version:', version.version)
+          "
+
+  gate-blocks-bad:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+      - name: Train a bad model (the gate must block it)
+        id: bad
+        run: uv run python -m gatedops demo bad --tracking-uri sqlite:///mlflow-bad.db
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-report-bad-model
+          path: artifacts/
+      - name: Publish gate summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+          import os
+
+          files = sorted(glob.glob("artifacts/*.manifest.json"))
+          lines = ["## Gate demo: a bad model is blocked", ""]
+          if not files:
+              lines.append("No gate report was produced.")
+          else:
+              manifest = json.load(open(files[-1], encoding="utf-8"))
+              gate = manifest["gate"]
+              lines.append("| metric | result | detail |")
+              lines.append("| --- | --- | --- |")
+              for check in gate["checks"]:
+                  result = "PASS" if check["passed"] else "FAIL"
+                  lines.append(f"| {check['metric']} | {result} | {check['detail']} |")
+              lines.append("")
+              lines.append(
+                  f"Gate status **{gate['status']}** - the bad model was not promoted."
+              )
+          lines.append("")
+          lines.append(
+              "This job fails on purpose: it proves a model below the quality bar "
+              "cannot reach production. The gate report is attached as an artifact."
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
+        shell: bash
+      - name: Fail if the bad model was not blocked
+        if: steps.bad.outcome == 'success'
+        run: |
+          echo "::error::the bad model unexpectedly passed the gate"
+          echo "## The bad model passed the gate (unexpected)" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
