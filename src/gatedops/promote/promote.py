@@ -19,8 +19,8 @@ class ModelRegistry(Protocol):
         """Return a local copy of the model artifact for a registered version."""
         ...
 
-    def set_stage(self, model_name: str, model_version: str, stage: PromoteStage) -> None:
-        """Move a registered model version to ``stage``."""
+    def set_production(self, model_name: str, model_version: str) -> None:
+        """Point the production alias of ``model_name`` at ``model_version``."""
         ...
 
 
@@ -62,7 +62,7 @@ def promote(manifest: ModelManifest, registry: ModelRegistry) -> PromoteReceipt:
             f"(manifest {manifest.artifact_hash}, registry {actual_hash})"
         )
 
-    registry.set_stage(manifest.model_name, manifest.model_version, "Production")
+    registry.set_production(manifest.model_name, manifest.model_version)
     return PromoteReceipt(
         model_name=manifest.model_name,
         model_version=manifest.model_version,

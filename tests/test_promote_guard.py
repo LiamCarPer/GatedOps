@@ -16,17 +16,17 @@ from gatedops.promote.promote import (
 
 
 class FakeRegistry:
-    """In-memory registry recording stage transitions."""
+    """In-memory registry recording production promotions."""
 
     def __init__(self, artifact: Path) -> None:
         self._artifact = artifact
-        self.calls: list[tuple[str, str, str]] = []
+        self.calls: list[tuple[str, str]] = []
 
     def version_artifact(self, model_name: str, model_version: str) -> Path:
         return self._artifact
 
-    def set_stage(self, model_name: str, model_version: str, stage: str) -> None:
-        self.calls.append((model_name, model_version, stage))
+    def set_production(self, model_name: str, model_version: str) -> None:
+        self.calls.append((model_name, model_version))
 
 
 def _passed_manifest(tmp_path: Path) -> tuple[ModelManifest, FakeRegistry]:
@@ -106,4 +106,4 @@ def test_promote_success(tmp_path: Path) -> None:
     assert isinstance(receipt, PromoteReceipt)
     assert receipt.to_stage == "Production"
     assert receipt.from_stage == "Staging"
-    assert registry.calls == [("churn", "v2", "Production")]
+    assert registry.calls == [("churn", "v2")]
