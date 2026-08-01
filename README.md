@@ -2,6 +2,9 @@
 
 _Reference MLOps platform: gated train/evaluate/promote/serve with full lineage._
 
+[![CI](https://github.com/LiamCarPer/GatedOps/actions/workflows/ci.yml/badge.svg)](https://github.com/LiamCarPer/GatedOps/actions/workflows/ci.yml)
+[![Train + gate demo](https://github.com/LiamCarPer/GatedOps/actions/workflows/train-eval-gate.yml/badge.svg)](https://github.com/LiamCarPer/GatedOps/actions/workflows/train-eval-gate.yml)
+
 GatedOps is the controlled path that takes a model from training to production
 serving: every release must pass a quality gate, every promotion is explicit,
 and every served prediction carries its lineage back to the exact code, data,
@@ -135,9 +138,10 @@ promoted:    no
 ```
 
 The same run in CI fails the build (non-zero exit code), so a bad model can
-never be promoted. The `train-eval-gate` workflow demonstrates it live: trigger
-it from the Actions tab and the `gate-blocks-bad` job fails on purpose with the
-`GateReport` uploaded as an artifact.
+never be promoted. The `train-eval-gate` workflow demonstrates it live — open
+[the latest run](https://github.com/LiamCarPer/GatedOps/actions/workflows/train-eval-gate.yml)
+and look at the `gate-blocks-bad` job: the `Train a bad model` step is red and
+the `GateReport` is attached as a downloadable artifact.
 
 ## Design decisions worth reading
 
