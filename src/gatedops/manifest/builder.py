@@ -1,5 +1,6 @@
 """Build a ``ModelManifest`` from the facts of a training run."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -9,7 +10,16 @@ from gatedops.manifest.schema import ModelManifest, PromoteStage
 
 
 def git_rev() -> str:
-    """Short HEAD SHA, suffixed ``-dirty`` when the working tree has changes."""
+    """Short HEAD SHA, suffixed ``-dirty`` when the working tree has changes.
+
+    The ``GATEDOPS_GIT_SHA`` environment variable takes precedence, which lets
+    builds inside containers (where ``git`` may not be present) still record a
+    code revision in the manifest.
+    """
+    override = os.environ.get("GATEDOPS_GIT_SHA")
+    if override:
+        return override
+
     sha = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
         capture_output=True,
