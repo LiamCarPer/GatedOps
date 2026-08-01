@@ -19,6 +19,12 @@ _ARTIFACT_DIR = "model"
 _ARTIFACT_FILE = "model.pkl"
 _PRODUCTION_ALIAS = "production"
 
+# Serialized model files, in preference order. ``model.pkl`` is the raw
+# cloudpickle artifact GatedOps itself logs; sklearn-flavored models logged by
+# mlflow use ``model.skops`` (or ``model.joblib``) instead.
+_MODEL_FILES = (_ARTIFACT_FILE, "model.skops", "model.joblib", "model")
+_METADATA_SUFFIXES = {".yaml", ".yml", ".txt", ".json", ".cfg"}
+
 
 class MlflowRegistry:
     """Adapter that lets the promotion policy drive an MLflow registry."""
@@ -44,12 +50,28 @@ class MlflowRegistry:
         version = self._client.get_model_version(model_name, model_version)
         run_id = version.run_id or self._require_run_id(model_name, model_version)
         artifact_dir = Path(self._client.download_artifacts(run_id, _ARTIFACT_DIR))
-        model_file = artifact_dir / _ARTIFACT_FILE
-        if not model_file.is_file():
+        model_file = self._find_model_file(artifact_dir)
+        if model_file is None:
             raise PromoteBlockedError(
-                f"no {_ARTIFACT_FILE} artifact for {model_name} version {model_version}"
+                f"no serialized model artifact for {model_name} version {model_version}"
             )
         return model_file
+
+    @staticmethod
+    def _find_model_file(artifact_dir: Path) -> Path | None:
+        """Locate the serialized model file inside a downloaded artifact directory."""
+        for name in _MODEL_FILES:
+            candidate = artifact_dir / name
+            if candidate.is_file():
+                return candidate
+        for candidate in sorted(artifact_dir.iterdir()):
+            if (
+                candidate.is_file()
+                and candidate.suffix
+                and candidate.suffix not in _METADATA_SUFFIXES
+            ):
+                return candidate
+        return None
 
     def set_production(self, model_name: str, model_version: str) -> None:
         self._client.set_registered_model_alias(model_name, _PRODUCTION_ALIAS, model_version)

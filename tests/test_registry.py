@@ -38,3 +38,33 @@ def test_registry_roundtrip(tmp_path, monkeypatch) -> None:
     assert str(production.version) == version
 
     assert registry.metrics_for("churn", version)["f1"] == 0.9
+
+
+def test_find_model_file_prefers_known_names(tmp_path) -> None:
+    artifact_dir = tmp_path / "model"
+    artifact_dir.mkdir()
+    (artifact_dir / "MLmodel").write_text("{}")
+    (artifact_dir / "requirements.txt").write_text("")
+    skops = artifact_dir / "model.skops"
+    skops.write_bytes(b"skops")
+
+    assert MlflowRegistry._find_model_file(artifact_dir) == skops
+
+
+def test_find_model_file_falls_back_to_serialized_file(tmp_path) -> None:
+    artifact_dir = tmp_path / "model"
+    artifact_dir.mkdir()
+    (artifact_dir / "MLmodel").write_text("{}")
+    (artifact_dir / "conda.yaml").write_text("")
+    binary = artifact_dir / "custom.bin"
+    binary.write_bytes(b"bytes")
+
+    assert MlflowRegistry._find_model_file(artifact_dir) == binary
+
+
+def test_find_model_file_missing_returns_none(tmp_path) -> None:
+    artifact_dir = tmp_path / "model"
+    artifact_dir.mkdir()
+    (artifact_dir / "MLmodel").write_text("{}")
+
+    assert MlflowRegistry._find_model_file(artifact_dir) is None
