@@ -16,6 +16,7 @@ import mlflow
 from mlflow.tracking import MlflowClient
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from gatedops.config import RunConfig, resolve_tracking_uri
@@ -42,7 +43,10 @@ class PipelineResult:
 
 def _build_model(config: RunConfig):
     if config.model.algorithm == "logistic":
-        return LogisticRegression(max_iter=2000, random_state=config.model.random_state)
+        return make_pipeline(
+            StandardScaler(),
+            LogisticRegression(max_iter=2000, random_state=config.model.random_state),
+        )
     raise ValueError(f"unsupported algorithm: {config.model.algorithm!r}")
 
 
@@ -77,10 +81,6 @@ def run_pipeline(
         random_state=config.model.random_state,
         stratify=labels,
     )
-    scaler = StandardScaler()
-    x_train = scaler.fit_transform(x_train)
-    x_test = scaler.transform(x_test)
-
     model = _build_model(config)
     model.fit(x_train, y_train)
     y_score = model.predict_proba(x_test)[:, 1]
