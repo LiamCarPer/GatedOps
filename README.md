@@ -138,10 +138,12 @@ promoted:    no
 ```
 
 The same run in CI fails the build (non-zero exit code), so a bad model can
-never be promoted. The `train-eval-gate` workflow demonstrates it live — open
-[the latest run](https://github.com/LiamCarPer/GatedOps/actions/workflows/train-eval-gate.yml)
-and look at the `gate-blocks-bad` job: the `Train a bad model` step is red and
-the `GateReport` is attached as a downloadable artifact.
+never be promoted. The `train-eval-gate` workflow demonstrates it live — see
+[the gate demo run](https://github.com/LiamCarPer/GatedOps/actions/runs/30761815637):
+the `train-promote-good` job is green, the `gate-blocks-bad` job is red, and
+the `GateReport` is attached as a downloadable artifact
+(`gate-report-bad-model`). Trigger a fresh run anytime from the
+[workflow page](https://github.com/LiamCarPer/GatedOps/actions/workflows/train-eval-gate.yml).
 
 ## Design decisions worth reading
 
