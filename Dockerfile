@@ -11,7 +11,7 @@ RUN uv sync --frozen --no-dev --no-editable
 
 # Runtime: a single image that can run either the MLflow registry server or
 # the scoring API, so the served mlflow version always matches uv.lock.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
