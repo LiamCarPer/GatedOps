@@ -145,6 +145,9 @@ the `GateReport` is attached as a downloadable artifact
 (`gate-report-bad-model`). Trigger a fresh run anytime from the
 [workflow page](https://github.com/LiamCarPer/GatedOps/actions/workflows/train-eval-gate.yml).
 
+The red check is **expected on every pull request** — the job exists to prove
+the gate blocks bad models; it is the demonstration, not a regression.
+
 ## Design decisions worth reading
 
 - **Fail-closed gate.** A missing metric fails the run; a model cannot slip
@@ -190,6 +193,8 @@ Out of scope by design (the platform is a demonstration, not a product):
   path to production is;
 - the API serves one model through the production alias (no multi-model
   routing);
+- the champion comparison is a plain delta with no statistical-significance
+  test — a deliberate policy-first simplification;
 - in-container runs have no `git`, so `git_sha` is either empty or set via the
   `GATEDOPS_GIT_SHA` environment variable.
 
@@ -198,6 +203,15 @@ Out of scope by design (the platform is a demonstration, not a product):
 - **AetherPdM** — a vertical application (industrial predictive maintenance).
 - **GatedOps** — the horizontal release system: the same gates that would
   promote an AetherPdM model.
+
+## Consumers
+
+[AetherPdM](https://github.com/LiamCarPer/AetherPdM) consumes this package as
+a pinned git dependency (`gatedops@v0.2.0`) for its promotion gates and lineage
+manifests: its fault and anomaly models are promoted through
+`gatedops.gate.engine.evaluate_gate` and record a `gatedops.manifest` on every
+release. This repository stays domain-agnostic — the churn classifier here is
+the demo vehicle for the contract, not the product.
 
 ## Development
 
@@ -208,7 +222,7 @@ uv run mypy src
 uv run pytest -q
 ```
 
-GitHub Actions runs three workflows:
+GitHub Actions runs two workflows:
 
 - `ci` -- lint, type checking, tests, and a Docker Compose smoke test
   (builds the stack, scores a request, asserts the served lineage);
@@ -218,7 +232,6 @@ GitHub Actions runs three workflows:
 
 ## Roadmap
 
-- wire an AetherPdM model through the same gate contract;
 - canary/shadow routing and traffic splitting;
 - a minimal Kubernetes Deployment on top of the Compose stack;
 - multi-model serving with model-name routing.
