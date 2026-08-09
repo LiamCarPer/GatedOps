@@ -68,6 +68,8 @@ registered, promoted, and served through the same machinery.
 
 ## Quickstart
 
+> Full, annotated walkthrough with expected outputs: [docs/DEMO.md](docs/DEMO.md).
+
 ### Locally (no Docker)
 
 ```bash
