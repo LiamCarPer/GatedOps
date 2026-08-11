@@ -1,0 +1,49 @@
+model_name: churn-classifier
+
+# The registry lives outside the repo by default so the first MLflow database
+# initialization is not slowed down by cloud-synced folders. Set an explicit
+# path here if you want it next to the code, e.g. sqlite:///mlflow.db
+# tracking_uri: sqlite:///mlflow.db
+
+# Serving-quality gate: the classification thresholds mirror pipeline.yaml, and
+# the latency/throughput thresholds cover the ONNX runtime path. The gate fails
+# closed on missing metrics, so the serving metrics live in their own config.
+gate:
+  thresholds:
+    - metric: f1
+      op: ">="
+      value: 0.70
+    - metric: precision
+      op: ">="
+      value: 0.65
+    - metric: false_alarm_rate
+      op: "<="
+      value: 0.10
+    - metric: latency_p95_ms
+      op: "<="
+      # Measured 0.04 ms on a developer machine (single-row CPU inference);
+      # 5 ms leaves ~100x headroom for slow runners while still being a real
+      # quality bar.
+      value: 5
+    - metric: throughput_rps
+      op: ">="
+      # Measured ~34k rps locally; 1000 rps is a realistic minimum for any
+      # deployment of this model.
+      value: 1000
+  champion:
+    metric: f1
+    tolerance: 0.02
+    min_delta: 0.0
+    higher_is_better: true
+
+data:
+  n_rows: 20000
+  signal_strength: 0.9
+  seed: 42
+  target: churn
+
+model:
+  algorithm: logistic
+  random_state: 42
+  test_size: 0.2
+  threshold: 0.6

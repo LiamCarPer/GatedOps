@@ -15,6 +15,7 @@ from gatedops.gate.engine import evaluate_gate
 from gatedops.gate.rules import GateConfig, ThresholdRule
 from gatedops.manifest.builder import build_manifest
 from gatedops.manifest.schema import ModelManifest
+from gatedops.pipelines.benchmark import export_to_onnx
 from gatedops.serve.loader import (
     ModelLoader,
     ModelNotLoadedError,
@@ -195,3 +196,27 @@ def test_threshold_comes_from_registry_params(tmp_path: Path) -> None:
     prediction_high, _ = high.predict(features)
     assert prediction_low == 1
     assert prediction_high == 0
+
+
+def test_load_and_predict_onnx(tmp_path: Path) -> None:
+    order = [
+        "tenure_years",
+        "monthly_spend",
+        "support_tickets",
+        "usage_frequency",
+        "engagement_score",
+        "has_contract",
+        "payment_delay",
+    ]
+    model = _make_model(feature_order=order)
+    x_sample = np.random.default_rng(2).normal(size=(100, len(order)))
+    artifact = export_to_onnx(model, x_sample, tmp_path / "model.onnx")
+
+    registry = FakeRegistry(artifact, _manifest_json(artifact), {"threshold": "0.6"})
+    loader = _loader(tmp_path, registry)
+    loader.load()
+
+    assert loader.manifest is not None
+    prediction, probability = loader.predict({name: 0.5 for name in order})
+    assert prediction in (0, 1)
+    assert 0.0 <= probability <= 1.0

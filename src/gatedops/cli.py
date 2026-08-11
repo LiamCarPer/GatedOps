@@ -56,6 +56,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         signal_strength=args.signal_strength,
         seed=args.seed,
         promote_on_pass=not args.no_promote,
+        export_onnx=args.benchmark,
+        benchmark=args.benchmark,
     )
     _print_result(result)
     if result.gate.status != "PASS":
@@ -91,6 +93,11 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--seed", type=int, default=None)
     run_parser.add_argument("--tracking-uri", default=None)
     run_parser.add_argument("--no-promote", action="store_true")
+    run_parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="export the model to ONNX and gate on serving-latency metrics",
+    )
     run_parser.set_defaults(handler=cmd_run)
 
     demo_parser = subparsers.add_parser("demo", help="run a scripted good or bad scenario")

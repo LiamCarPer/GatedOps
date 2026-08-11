@@ -4,6 +4,12 @@ The loader is the enforcement point at serving time. It only ever serves the
 version the ``production`` alias points at, and only after proving the bytes in
 the registry match the artifact hash recorded in the lineage manifest. A
 background poller hot-swaps to a newly promoted version without a restart.
+
+Two artifact formats are supported. ``model.pkl`` (cloudpickle) is loaded with
+cloudpickle and scored through the sklearn API. ``model.onnx`` is loaded as an
+``onnxruntime.InferenceSession`` and scored on a feature vector built from the
+request schema's ``FEATURE_ORDER``, which is the contract for feature ordering
+on the ONNX path.
 """
 
 from __future__ import annotations
@@ -14,11 +20,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import cloudpickle
+import numpy as np
 import pandas as pd
 
 from gatedops.manifest.hashing import sha256_file
 from gatedops.manifest.schema import ModelManifest
 from gatedops.registry.mlflow_ import MlflowRegistry
+from gatedops.serve.schemas import FEATURE_ORDER
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +58,7 @@ class ModelLoader:
         self._lock = threading.Lock()
         self._model = None
         self._threshold = _DEFAULT_THRESHOLD
+        self._onnx_input: str | None = None
         self._manifest: ModelManifest | None = None
         self._loaded_at: datetime | None = None
         self._stop = threading.Event()
@@ -83,13 +92,29 @@ class ModelLoader:
         artifact = self._registry.version_artifact(self._model_name, version_str)
         self._verify(artifact, manifest)
 
-        model = cloudpickle.loads(artifact.read_bytes())
+        if artifact.name.endswith(".onnx"):
+            import onnxruntime as ort
+
+            model = ort.InferenceSession(
+                str(artifact), providers=["CPUExecutionProvider"]
+            )
+            input_names = [item.name for item in model.get_inputs()]
+            if len(input_names) != 1 or len(model.get_outputs()) < 2:
+                raise ModelVerificationError(
+                    "ONNX artifact must expose one input and a class-probability "
+                    f"output (got inputs {input_names!r})"
+                )
+            onnx_input = input_names[0]
+        else:
+            model = cloudpickle.loads(artifact.read_bytes())
+            onnx_input = None
         params = self._registry.params_for(self._model_name, version_str)
         threshold = float(params.get(_THRESHOLD_PARAM, _DEFAULT_THRESHOLD))
 
         with self._lock:
             self._model = model
             self._threshold = threshold
+            self._onnx_input = onnx_input
             self._manifest = manifest
             self._loaded_at = datetime.now(UTC)
         logger.info(
@@ -146,10 +171,23 @@ class ModelLoader:
         with self._lock:
             model = self._model
             threshold = self._threshold
+            onnx_input = self._onnx_input
         if model is None:
             raise ModelNotLoadedError(
                 f"no production model loaded for {self._model_name!r}"
             )
+
+        if hasattr(model, "run") and not callable(getattr(model, "predict", None)):
+            # ONNX path: the request schema's FEATURE_ORDER is the contract for
+            # feature ordering, matching the input of the exported graph.
+            array = np.asarray(
+                [float(features[name]) for name in FEATURE_ORDER],
+                dtype=np.float32,
+            )
+            outputs = model.run(None, {onnx_input: array[None, :]})
+            probability = float(outputs[1][0, 1])
+            prediction = int(probability >= threshold)
+            return prediction, probability
 
         frame = pd.DataFrame([features])
         names = getattr(model, "feature_names_in_", None)

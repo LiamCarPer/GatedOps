@@ -1,9 +1,11 @@
 """MLflow-backed implementation of the model registry protocol.
 
-The pipeline stores the model as a plain, byte-exact artifact (``model.pkl``)
-rather than an MLflow model flavor. That keeps the artifact hash meaningful:
-what the server loads is exactly what the gate saw, with no flavor machinery
-between training and serving.
+The pipeline stores the model as a plain, byte-exact artifact rather than an
+MLflow model flavor. That keeps the artifact hash meaningful: what the server
+loads is exactly what the gate saw, with no flavor machinery between training
+and serving. The default artifact is ``model.pkl`` (cloudpickle); serving-
+quality runs log ``model.onnx`` instead, which the loader serves through
+``onnxruntime``.
 """
 
 from pathlib import Path
@@ -19,10 +21,11 @@ _ARTIFACT_DIR = "model"
 _ARTIFACT_FILE = "model.pkl"
 _PRODUCTION_ALIAS = "production"
 
-# Serialized model files, in preference order. ``model.pkl`` is the raw
-# cloudpickle artifact GatedOps itself logs; sklearn-flavored models logged by
-# mlflow use ``model.skops`` (or ``model.joblib``) instead.
-_MODEL_FILES = (_ARTIFACT_FILE, "model.skops", "model.joblib", "model")
+# Serialized model files, in preference order. ``model.onnx`` is the serving-
+# quality artifact GatedOps exports; ``model.pkl`` is the raw cloudpickle
+# artifact; sklearn-flavored models logged by mlflow use ``model.skops`` (or
+# ``model.joblib``) instead.
+_MODEL_FILES = ("model.onnx", _ARTIFACT_FILE, "model.skops", "model.joblib", "model")
 _METADATA_SUFFIXES = {".yaml", ".yml", ".txt", ".json", ".cfg"}
 
 

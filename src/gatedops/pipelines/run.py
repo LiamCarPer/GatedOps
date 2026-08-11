@@ -13,6 +13,7 @@ from pathlib import Path
 
 import cloudpickle
 import mlflow
+import numpy as np
 from mlflow.tracking import MlflowClient
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
@@ -26,6 +27,7 @@ from gatedops.gate.engine import evaluate_gate
 from gatedops.gate.report import GateReport
 from gatedops.manifest.builder import build_manifest
 from gatedops.manifest.schema import ModelManifest
+from gatedops.pipelines.benchmark import benchmark_onnx, export_to_onnx
 from gatedops.promote.promote import PromoteReceipt, promote
 from gatedops.registry.mlflow_ import MlflowRegistry
 
@@ -57,8 +59,30 @@ def run_pipeline(
     signal_strength: float | None = None,
     seed: int | None = None,
     promote_on_pass: bool = True,
+    export_onnx: bool = False,
+    benchmark: bool = False,
 ) -> PipelineResult:
-    """Execute the train -> evaluate -> gate -> register -> promote loop."""
+    """Execute the train -> evaluate -> gate -> register -> promote loop.
+
+    Args:
+        config: Validated configuration for the run.
+        tracking_uri: Override for the MLflow tracking URI.
+        signal_strength: Override for the data generator's signal strength.
+        seed: Override for the data generator's seed.
+        promote_on_pass: Whether a passing gate automatically promotes to
+            production.
+        export_onnx: When True, export the fitted pipeline to ONNX
+            (``artifacts/<run_id>/model.onnx``) instead of pickling it, and log
+            that file as the model artifact.
+        benchmark: When True, benchmark the ONNX artifact on the test features
+            and merge the serving metrics (latency percentiles, throughput) into
+            the metrics dict before logging and gating. Implies ONNX export.
+    """
+    if export_onnx and not benchmark:
+        raise ValueError(
+            "export_onnx=True requires benchmark=True: an ONNX artifact is only "
+            "produced when its serving quality is measured and gated"
+        )
     tracking_uri = resolve_tracking_uri(tracking_uri or config.tracking_uri)
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment("gatedops")
@@ -99,13 +123,25 @@ def run_pipeline(
                 "threshold": config.model.threshold,
             }
         )
-        mlflow.log_metrics(metrics)
 
         model_dir = Path("artifacts") / run_id
         model_dir.mkdir(parents=True, exist_ok=True)
-        model_file = model_dir / "model.pkl"
-        model_file.write_bytes(cloudpickle.dumps(model))
-        mlflow.log_artifact(model_file, artifact_path="model")
+        if export_onnx or benchmark:
+            model_file = export_to_onnx(
+                model, x_test.to_numpy(dtype=np.float64), model_dir / "model.onnx"
+            )
+        else:
+            model_file = model_dir / "model.pkl"
+            model_file.write_bytes(cloudpickle.dumps(model))
+
+        if benchmark:
+            benchmark_results = benchmark_onnx(
+                model_file, x_test.to_numpy(dtype=np.float32)
+            )
+            metrics = {**metrics, **benchmark_results}
+
+        mlflow.log_metrics(metrics)
+        mlflow.log_artifact(str(model_file), artifact_path="model")
 
     client = MlflowClient(tracking_uri=tracking_uri)
     registry = MlflowRegistry(tracking_uri=tracking_uri)
