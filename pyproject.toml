@@ -29,6 +29,16 @@ dev = [
     "mypy>=1.13",
     "httpx>=0.28",
 ]
+orchestration = [
+    "prefect>=3.0",
+]
+airflow = [
+    "apache-airflow>=2.10",
+]
+serving = [
+    "onnxruntime>=1.18",
+    "skl2onnx>=1.16",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -50,6 +60,9 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "airflow: tests that require apache-airflow (run with -m airflow)",
+]
 
 [tool.mypy]
 python_version = "3.12"
