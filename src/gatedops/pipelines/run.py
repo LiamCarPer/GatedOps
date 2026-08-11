@@ -27,7 +27,6 @@ from gatedops.gate.engine import evaluate_gate
 from gatedops.gate.report import GateReport
 from gatedops.manifest.builder import build_manifest
 from gatedops.manifest.schema import ModelManifest
-from gatedops.pipelines.benchmark import benchmark_onnx, export_to_onnx
 from gatedops.promote.promote import PromoteReceipt, promote
 from gatedops.registry.mlflow_ import MlflowRegistry
 
@@ -127,18 +126,21 @@ def run_pipeline(
         model_dir = Path("artifacts") / run_id
         model_dir.mkdir(parents=True, exist_ok=True)
         if export_onnx or benchmark:
+            # The serving extras are optional; import them only when used so
+            # the base package never requires onnxruntime/skl2onnx.
+            from gatedops.pipelines.benchmark import benchmark_onnx, export_to_onnx
+
             model_file = export_to_onnx(
                 model, x_test.to_numpy(dtype=np.float64), model_dir / "model.onnx"
             )
+            if benchmark:
+                benchmark_results = benchmark_onnx(
+                    model_file, x_test.to_numpy(dtype=np.float32)
+                )
+                metrics = {**metrics, **benchmark_results}
         else:
             model_file = model_dir / "model.pkl"
             model_file.write_bytes(cloudpickle.dumps(model))
-
-        if benchmark:
-            benchmark_results = benchmark_onnx(
-                model_file, x_test.to_numpy(dtype=np.float32)
-            )
-            metrics = {**metrics, **benchmark_results}
 
         mlflow.log_metrics(metrics)
         mlflow.log_artifact(str(model_file), artifact_path="model")
