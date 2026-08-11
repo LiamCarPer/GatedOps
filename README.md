@@ -224,6 +224,26 @@ uv run mypy src
 uv run pytest -q
 ```
 
+Optional extras: `--extra orchestration` (Prefect flow), `--extra airflow`
+(Airflow operator), `--extra serving` (ONNX export + serving-quality
+benchmark). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design
+notes (alias-based registry, serving-quality gates, Triton extension).
+
+Scheduled, gate-gated releases:
+
+- **Prefect 3 flow** (`gatedops.pipelines.prefect_flow.gated_flow`): train,
+  evaluate and gate run as tasks with `promote_on_pass=False`; promotion runs
+  only when the gate passes. Deploy as a cron job with `gated_flow.serve(...)`.
+- **Airflow operator** (`gatedops.airflow.GatedOpsOperator`): runs the
+  pipeline, pushes the gate status to XCom, and fails the task when the gate
+  rejects the model. Example DAG: `examples/dags/gatedops_dag.py`.
+
+Serving-quality gate (gates latency/throughput of the ONNX runtime path):
+
+```bash
+uv run python -m gatedops run --config configs/serving.yaml --benchmark
+```
+
 GitHub Actions runs two workflows:
 
 - `ci` -- lint, type checking, tests, and a Docker Compose smoke test
