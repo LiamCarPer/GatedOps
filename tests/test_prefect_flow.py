@@ -10,6 +10,8 @@ import os
 import mlflow
 import pytest
 
+pytest.importorskip("prefect")
+
 from gatedops.config import DataConfig, ModelConfig, RunConfig
 from gatedops.gate.rules import ChampionRule, GateConfig, ThresholdRule
 from gatedops.manifest.schema import ModelManifest

@@ -37,6 +37,8 @@ except ImportError:
 
 import mlflow
 import pytest
+
+pytest.importorskip("airflow")
 from airflow.exceptions import AirflowFailException
 from airflow.models import import_all_models
 
